@@ -21,6 +21,36 @@ if (process.env.TILESET_OPTIMIZATION && process.env.TILESET_OPTIMIZATION === "tr
     }
 }
 
+function localNetworkAccessPlugin() {
+    return {
+        name: "local-network-access",
+        configureServer(server: { middlewares: { use: (fn: (...args: any[]) => void) => void } }) {
+            server.middlewares.use((req, res, next) => {
+                res.setHeader("Access-Control-Allow-Origin", "*");
+                res.setHeader("Access-Control-Allow-Private-Network", "true");
+                res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS");
+                res.setHeader(
+                    "Access-Control-Allow-Headers",
+                    req.headers["access-control-request-headers"] || "X-Requested-With, content-type, Authorization"
+                );
+
+                const pathname = (req.url ?? "").split("?")[0];
+                if (pathname.endsWith(".tmj") || pathname.endsWith(".json")) {
+                    res.setHeader("Content-Type", "application/json");
+                }
+
+                if (req.method === "OPTIONS" && req.headers["access-control-request-private-network"]) {
+                    res.statusCode = 204;
+                    res.end();
+                    return;
+                }
+
+                next();
+            });
+        },
+    };
+}
+
 export default defineConfig({
     base: "./",
     build: {
@@ -32,11 +62,12 @@ export default defineConfig({
             },
         },
     },
-    plugins: [...getMapsOptimizers(maps, optimizerOptions)],
+    plugins: [localNetworkAccessPlugin(), ...getMapsOptimizers(maps, optimizerOptions)],
     server: {
-        host: "localhost",
+        host: true,
         headers: {
             "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Private-Network": "true",
             "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
             "Access-Control-Allow-Headers": "X-Requested-With, content-type, Authorization",
             "Cache-Control": "no-cache, no-store, must-revalidate",
